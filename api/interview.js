@@ -15,6 +15,7 @@ async function callGroqWithFallback(messages) {
             const completion = await groq.chat.completions.create({
                 messages: messages,
                 model: "llama-3.3-70b-versatile",
+                temperature: 0.2, // 🚀 CRITICAL FIX: یہ AI کو کنفیوز ہونے اور دوسری زبانیں مکس کرنے سے روکے گا!
                 response_format: { type: "json_object" }
             });
             return JSON.parse(completion.choices[0].message.content);
@@ -37,7 +38,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
         return res.status(200).send(`
             <html><body style="text-align: center; padding-top: 50px; color: #166534;">
-            <h1>✅ System is Live!</h1></body></html>
+            <h1>✅ System is Live & Fixed!</h1></body></html>
         `);
     }
 
@@ -47,37 +48,34 @@ export default async function handler(req, res) {
 
     try {
         if (action === 'generate') {
-            // 🚀 سٹرکٹ پرامپٹ: زبان مکس کرنے سے سختی سے منع کیا گیا ہے
-            const prompt = `Act as an expert human HR Manager. Generate exactly ${qty} highly professional interview questions for a candidate applying for the role of "${role}" with "${exp}" experience. 
-            CRITICAL INSTRUCTION: The questions MUST be written ENTIRELY and NATURALLY in the "${lang}" language. Use the correct native alphabet and script for ${lang} (e.g., if Urdu, use ONLY pure Urdu Nastaliq script). DO NOT mix English words, Chinese, Hindi, or any other language characters. Sound like a real native human speaker.
-            Return ONLY a JSON object with a "questions" array containing the strings.
-            Format: { "questions": ["Question 1", "Question 2"] }`;
+            const prompt = `You are a professional HR Manager. Generate exactly ${qty} interview questions for a "${role}" with "${exp}" experience.
+            CRITICAL RULE: Write the questions EXCLUSIVELY in ${lang}. If ${lang} is Urdu, use ONLY standard Urdu alphabet. Do NOT use any Cyrillic, Chinese, or Japanese characters under any circumstances.
+            Format: Return ONLY a JSON object: { "questions": ["Q1", "Q2"] }`;
 
-            const result = await callGroqWithFallback([{ role: "user", content: prompt }]);
+            const result = await callGroqWithFallback([{ role: "system", content: prompt }]);
             return res.status(200).json({ questions: result.questions });
         }
 
         if (action === 'evaluate') {
-            // 🚀 سٹرکٹ پرامپٹ برائے ایویلیوایشن
-            const prompt = `Act as an expert human HR Manager evaluating a candidate for the role of "${role}".
-            Question Asked: "${question}"
+            const prompt = `You are a professional HR Manager evaluating a candidate for the role of "${role}".
+            Question: "${question}"
             Candidate's Answer: "${answer}"
-            Language: ${lang}
+            Target Language: ${lang}
             
-            CRITICAL INSTRUCTION: Your feedback and the correct_answer MUST be written ENTIRELY and NATURALLY in native "${lang}". Do NOT use any Chinese characters, Hindi characters, or English words (unless it is a universally unavoidable medical term). Write naturally like a native human HR manager speaking directly to the candidate.
+            CRITICAL RULE: Write your feedback and correct_answer EXCLUSIVELY in ${lang}. If ${lang} is Urdu, use ONLY the standard Urdu Arabic script. ABSOLUTELY NO Cyrillic, Russian, Chinese, or Japanese characters are allowed. Keep it simple and strictly professional.
             
-            Evaluate this answer realistically. Return ONLY a JSON object with this exact structure:
+            Return ONLY a JSON object:
             {
                 "status": "correct", "incorrect", or "improve",
-                "feedback": "Write a helpful, naturally flowing 2-line feedback directed to the candidate in pure ${lang}.",
-                "correct_answer": "Write the ideal, highly professional human-like answer the candidate SHOULD have given, in pure ${lang}."
+                "feedback": "2 lines of helpful feedback in pure ${lang}",
+                "correct_answer": "The ideal professional answer in pure ${lang}"
             }`;
 
-            const evaluation = await callGroqWithFallback([{ role: "user", content: prompt }]);
+            const evaluation = await callGroqWithFallback([{ role: "system", content: prompt }]);
             return res.status(200).json(evaluation);
         }
 
-        return res.status(400).json({ error: 'Invalid action provided.' });
+        return res.status(400).json({ error: 'Invalid action.' });
 
     } catch (error) {
         console.error("Server Error:", error);
