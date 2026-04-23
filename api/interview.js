@@ -14,8 +14,7 @@ async function callGroqWithFallback(messages) {
             const groq = new Groq({ apiKey: keys[i] });
             const completion = await groq.chat.completions.create({
                 messages: messages,
-                // 👇 یہاں نیا ماڈل اپڈیٹ کر دیا گیا ہے 
-                model: "llama-3.3-70b-versatile", 
+                model: "llama-3.3-70b-versatile",
                 response_format: { type: "json_object" }
             });
             return JSON.parse(completion.choices[0].message.content);
@@ -28,7 +27,6 @@ async function callGroqWithFallback(messages) {
 }
 
 export default async function handler(req, res) {
-    // 🛡️ CORS Headers
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*'); 
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS, POST');
@@ -36,15 +34,10 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // 🟢 Direct Browser Testing Mode
     if (req.method === 'GET') {
         return res.status(200).send(`
-            <html>
-                <body style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #f0fdf4; color: #166534;">
-                    <h1>✅ System is Live & Running!</h1>
-                    <p>Health Jobs AI Backend is perfectly deployed on Vercel.</p>
-                </body>
-            </html>
+            <html><body style="text-align: center; padding-top: 50px; color: #166534;">
+            <h1>✅ System is Live!</h1></body></html>
         `);
     }
 
@@ -54,26 +47,30 @@ export default async function handler(req, res) {
 
     try {
         if (action === 'generate') {
-            const prompt = `Act as an expert HR Manager. Generate exactly ${qty} highly professional interview questions for a candidate applying for the role of "${role}" with "${exp}" experience. 
-            The questions MUST be completely in the "${lang}" language.
+            // 🚀 سٹرکٹ پرامپٹ: زبان مکس کرنے سے سختی سے منع کیا گیا ہے
+            const prompt = `Act as an expert human HR Manager. Generate exactly ${qty} highly professional interview questions for a candidate applying for the role of "${role}" with "${exp}" experience. 
+            CRITICAL INSTRUCTION: The questions MUST be written ENTIRELY and NATURALLY in the "${lang}" language. Use the correct native alphabet and script for ${lang} (e.g., if Urdu, use ONLY pure Urdu Nastaliq script). DO NOT mix English words, Chinese, Hindi, or any other language characters. Sound like a real native human speaker.
             Return ONLY a JSON object with a "questions" array containing the strings.
-            Format: { "questions": ["Q1", "Q2"] }`;
+            Format: { "questions": ["Question 1", "Question 2"] }`;
 
             const result = await callGroqWithFallback([{ role: "user", content: prompt }]);
             return res.status(200).json({ questions: result.questions });
         }
 
         if (action === 'evaluate') {
-            const prompt = `Act as an expert HR Manager evaluating a candidate for the role of "${role}".
+            // 🚀 سٹرکٹ پرامپٹ برائے ایویلیوایشن
+            const prompt = `Act as an expert human HR Manager evaluating a candidate for the role of "${role}".
             Question Asked: "${question}"
             Candidate's Answer: "${answer}"
             Language: ${lang}
             
-            Evaluate this answer realistically and strictly. Return ONLY a JSON object with this exact structure:
+            CRITICAL INSTRUCTION: Your feedback and the correct_answer MUST be written ENTIRELY and NATURALLY in native "${lang}". Do NOT use any Chinese characters, Hindi characters, or English words (unless it is a universally unavoidable medical term). Write naturally like a native human HR manager speaking directly to the candidate.
+            
+            Evaluate this answer realistically. Return ONLY a JSON object with this exact structure:
             {
                 "status": "correct", "incorrect", or "improve",
-                "feedback": "Write a helpful 2-line feedback directed to the candidate in ${lang}.",
-                "correct_answer": "Write the ideal, highly professional answer the candidate SHOULD have given, in ${lang}."
+                "feedback": "Write a helpful, naturally flowing 2-line feedback directed to the candidate in pure ${lang}.",
+                "correct_answer": "Write the ideal, highly professional human-like answer the candidate SHOULD have given, in pure ${lang}."
             }`;
 
             const evaluation = await callGroqWithFallback([{ role: "user", content: prompt }]);
