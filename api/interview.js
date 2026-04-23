@@ -14,7 +14,7 @@ async function callGroqWithFallback(messages) {
             const completion = await groq.chat.completions.create({
                 messages: messages,
                 model: "llama-3.3-70b-versatile",
-                temperature: 0.1, // مزید کم کر دیا تاکہ AI اپنی مرضی نہ کرے
+                temperature: 0.1,
                 response_format: { type: "json_object" }
             });
             return JSON.parse(completion.choices[0].message.content);
@@ -32,33 +32,32 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-    const { action, role, exp, lang, qty, question, answer } = req.body;
+    const { action, name, role, exp, lang, qty, question, answer } = req.body;
 
     try {
         if (action === 'generate') {
-            // 🚀 سٹرکٹ پرامپٹ: زبان کے معاملے میں کوئی رعایت نہیں
-            const prompt = `You are an expert HR Manager. Output must be valid JSON.
-            Task: Generate ${qty} questions for "${role}" (${exp}).
-            Language: ${lang}.
-            STRICT LANGUAGE RULE: If language is "Urdu", use ONLY Urdu Arabic script. If "Roman Urdu", use ONLY English alphabet (A-Z).
-            FORBIDDEN: Absolutely NO Chinese, Russian, Japanese, or Hindi characters. Use ONLY the script of the chosen language.
-            JSON Format: { "questions": ["Q1", "Q2"] }`;
+            const prompt = `System: You are an expert HR Manager. Output MUST be valid JSON.
+            Task: Start by professionally greeting ${name} and acknowledging their interest in the "${role}" role. Then, generate exactly ${qty} interview questions.
+            Language: ${lang}. 
+            STRICT RULES:
+            - If "Urdu": Use pure Urdu Arabic script. 
+            - If "Roman Urdu": Use English A-Z, Pakistani conversational style (e.g., 'sehat', 'mareez').
+            - ABSOLUTELY NO mixed scripts (Chinese, Russian, Hindi). If you use a non-target script, the evaluation is a failure.
+            Format: { "greeting": "Professional welcome message in ${lang}", "questions": ["Q1", "Q2", ...] }`;
 
             const result = await callGroqWithFallback([{ role: "system", content: prompt }]);
-            return res.status(200).json({ questions: result.questions });
+            return res.status(200).json(result);
         }
 
         if (action === 'evaluate') {
-            // 🚀 یہاں بھی فلٹر سخت کر دیا ہے
-            const prompt = `You are an expert HR Manager. Output must be valid JSON.
-            Evaluate: "${answer}" for question "${question}".
+            const prompt = `System: You are an expert HR Manager. Output MUST be valid JSON.
+            Task: Evaluate the answer: "${answer}" for the question: "${question}".
             Rules:
-            1. If professional: status="correct".
-            2. If weak: status="improve".
-            3. If wrong: status="incorrect".
-            STRICT LANGUAGE RULE: Output MUST be in pure ${lang}. 
-            FORBIDDEN: Zero tolerance for Chinese, Russian, Hindi, or mixed scripts. If you use foreign characters, you fail.
-            JSON Format: { "status": "correct|incorrect|improve", "feedback": "2 lines feedback", "correct_answer": "Model answer" }`;
+            1. If the answer is accurate, factually correct, and professional, status="correct".
+            2. If the answer is partially incomplete but has the right idea, status="improve".
+            3. If the answer is wrong or harmful, status="incorrect".
+            Language: Pure ${lang}. No foreign scripts. Use ONLY target language.
+            Format: { "status": "correct|incorrect|improve", "feedback": "2 lines of direct feedback in ${lang}", "correct_answer": "Model professional answer in ${lang}" }`;
 
             const evaluation = await callGroqWithFallback([{ role: "system", content: prompt }]);
             return res.status(200).json(evaluation);
