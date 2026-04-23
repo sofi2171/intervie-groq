@@ -1,0 +1,12 @@
+{
+  "name": "health-jobs-backend",
+  "version": "1.0.0",
+  "description": "Backend API for Health Jobs AI Interview",
+  "main": "api/interview.js",
+  "scripts": {
+    "start": "node api/interview.js"
+  },
+  "dependencies": {
+    "groq-sdk": "^0.3.2"
+  }
+}
