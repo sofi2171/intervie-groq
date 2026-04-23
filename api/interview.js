@@ -15,7 +15,7 @@ async function callGroqWithFallback(messages) {
             const completion = await groq.chat.completions.create({
                 messages: messages,
                 model: "llama-3.3-70b-versatile",
-                temperature: 0.2, // 🚀 CRITICAL FIX: یہ AI کو کنفیوز ہونے اور دوسری زبانیں مکس کرنے سے روکے گا!
+                temperature: 0.2, // Keeps AI strict and focused
                 response_format: { type: "json_object" }
             });
             return JSON.parse(completion.choices[0].message.content);
@@ -38,7 +38,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
         return res.status(200).send(`
             <html><body style="text-align: center; padding-top: 50px; color: #166534;">
-            <h1>✅ System is Live & Fixed!</h1></body></html>
+            <h1>✅ System is Live & Language Fixed!</h1></body></html>
         `);
     }
 
@@ -49,7 +49,11 @@ export default async function handler(req, res) {
     try {
         if (action === 'generate') {
             const prompt = `You are a professional HR Manager. Generate exactly ${qty} interview questions for a "${role}" with "${exp}" experience.
-            CRITICAL RULE: Write the questions EXCLUSIVELY in ${lang}. If ${lang} is Urdu, use ONLY standard Urdu alphabet. Do NOT use any Cyrillic, Chinese, or Japanese characters under any circumstances.
+            
+            CRITICAL LANGUAGE RULES for ${lang}:
+            - If ${lang} is "Urdu": Use ONLY standard Urdu Arabic script. Absolutely NO Chinese, Russian, or Hindi script.
+            - If ${lang} is "Roman Urdu": Write EXACTLY how Pakistanis text on WhatsApp using the English alphabet. USE words like 'sehat', 'tafseel', 'zaroorat', 'mareez', 'jaiza'. STRICTLY AVOID Shuddh Hindi words like 'swasthya', 'vistrit', 'avashyakta', 'kripya', 'yojana', 'mulyankan'.
+            
             Format: Return ONLY a JSON object: { "questions": ["Q1", "Q2"] }`;
 
             const result = await callGroqWithFallback([{ role: "system", content: prompt }]);
@@ -62,13 +66,15 @@ export default async function handler(req, res) {
             Candidate's Answer: "${answer}"
             Target Language: ${lang}
             
-            CRITICAL RULE: Write your feedback and correct_answer EXCLUSIVELY in ${lang}. If ${lang} is Urdu, use ONLY the standard Urdu Arabic script. ABSOLUTELY NO Cyrillic, Russian, Chinese, or Japanese characters are allowed. Keep it simple and strictly professional.
+            CRITICAL LANGUAGE RULES for ${lang}:
+            - If ${lang} is "Urdu": Use ONLY pure Urdu script. No Cyrillic, Chinese, or English mixed.
+            - If ${lang} is "Roman Urdu": Write naturally in everyday Pakistani conversational style. USE Pakistani vocabulary (e.g., 'behtar', 'masla', 'hal', 'sahulat', 'mariizon ki dekhbhal'). STRICTLY AVOID any Hindi-specific words like 'swasthya', 'sthiti', 'vistrit', 'yojana', 'mulyankan'.
             
             Return ONLY a JSON object:
             {
                 "status": "correct", "incorrect", or "improve",
-                "feedback": "2 lines of helpful feedback in pure ${lang}",
-                "correct_answer": "The ideal professional answer in pure ${lang}"
+                "feedback": "2 lines of helpful feedback in pure ${lang} following the rules above",
+                "correct_answer": "The ideal professional answer in pure ${lang} following the rules above"
             }`;
 
             const evaluation = await callGroqWithFallback([{ role: "system", content: prompt }]);
