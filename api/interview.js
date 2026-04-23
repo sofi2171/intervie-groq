@@ -14,7 +14,8 @@ async function callGroqWithFallback(messages) {
             const groq = new Groq({ apiKey: keys[i] });
             const completion = await groq.chat.completions.create({
                 messages: messages,
-                model: "llama3-70b-8192",
+                // 👇 یہاں نیا ماڈل اپڈیٹ کر دیا گیا ہے 
+                model: "llama-3.3-70b-versatile", 
                 response_format: { type: "json_object" }
             });
             return JSON.parse(completion.choices[0].message.content);
@@ -35,16 +36,13 @@ export default async function handler(req, res) {
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // ==========================================
-    // 🟢 NEW: Direct Browser Testing Mode
-    // ==========================================
+    // 🟢 Direct Browser Testing Mode
     if (req.method === 'GET') {
         return res.status(200).send(`
             <html>
                 <body style="font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #f0fdf4; color: #166534;">
                     <h1>✅ System is Live & Running!</h1>
                     <p>Health Jobs AI Backend is perfectly deployed on Vercel.</p>
-                    <p>Your Frontend can now connect to this API.</p>
                 </body>
             </html>
         `);
@@ -89,4 +87,3 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "Backend Error: " + error.message });
     }
 }
-
