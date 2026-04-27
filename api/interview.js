@@ -1,29 +1,6 @@
-import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-async function callGroqWithFallback(messages) {
-    const keys = [
-        process.env.GROQ_1, process.env.GROQ_2, process.env.GROQ_3,
-        process.env.GROQ_4, process.env.GROQ_5
-    ].filter(key => key && key.trim() !== '');
-
-    if (keys.length === 0) throw new Error("No API keys found.");
-
-    for (let i = 0; i < keys.length; i++) {
-        try {
-            const groq = new Groq({ apiKey: keys[i] });
-            const completion = await groq.chat.completions.create({
-                messages: messages,
-                model: "llama-3.3-70b-versatile",
-                temperature: 0.2, // تھوڑی سی creativity کے لیے 0.2 کر دیا ہے تاکہ روبوٹک نہ لگے
-                response_format: { type: "json_object" }
-            });
-            return JSON.parse(completion.choices[0].message.content);
-        } catch (error) {
-            console.error(`Key ${i+1} failed:`, error.message);
-        }
-    }
-    throw new Error("All API keys failed.");
-}
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
     // CORS Headers
@@ -34,16 +11,26 @@ export default async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-    const { action, name, role, exp, lang, qty, question, answer } = req.body;
+    // فرنٹ اینڈ سے JD اور باقی ڈیٹا وصول کرنا
+    const { action, name, role, exp, lang, qty, jd, question, answer } = req.body;
 
     try {
+        // Gemini 1.5 Flash - سب سے تیز اور بہترین ماڈل
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-1.5-flash",
+            generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+        });
+
         // ==========================================
-        // 1. GENERATE QUESTIONS (Human Touch Logic)
+        // 1. GENERATE QUESTIONS (JD & Human Touch)
         // ==========================================
         if (action === 'generate') {
-            const prompt = `System: You are an expert, friendly, and professional Human HR Manager conducting a job interview. Output MUST be valid JSON.
+            const jdContext = jd ? `\nCRITICAL CONTEXT: The candidate provided this specific Job Description for the role: "${jd}". You MUST base your interview questions directly on the specific skills, requirements, and duties mentioned in this JD.` : '';
+
+            const prompt = `You are an expert, friendly, and professional Human HR Manager conducting a job interview. Output MUST be valid JSON.
             
             Task: Generate exactly ${qty} interview questions for the role of "${role}" with "${exp}" experience.
+            ${jdContext}
             
             HUMAN TOUCH REQUIREMENT (CRITICAL): 
             For the VERY FIRST question in your array, you MUST start by greeting the candidate by their name ("${name}"). Ask how they are doing today, warmly welcome them to the interview for the "${role}" position, and then ask the first actual interview question. Behave like a real human.
@@ -52,19 +39,20 @@ export default async function handler(req, res) {
             - If "English": Use natural, professional conversational English.
             - If "Urdu": Use pure Urdu Arabic script ONLY (اردو). No Hindi words.
             - If "Roman Urdu": Use English A-Z alphabets, but speak in a natural Pakistani conversational tone (e.g., 'Assalam o Alaikum ${name}, aap kaise hain?').
-            - ABSOLUTELY NO mixed scripts (No Chinese, Russian, or Hindi characters).
+            - ABSOLUTELY NO mixed scripts.
             
             Format: { "questions": ["Greeting & Q1", "Q2", "Q3", ...] }`;
 
-            const result = await callGroqWithFallback([{ role: "system", content: prompt }]);
-            return res.status(200).json(result);
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
+            return res.status(200).json(JSON.parse(responseText));
         }
 
         // ==========================================
-        // 2. EVALUATE ANSWER (Strict & Honest Logic)
+        // 2. EVALUATE ANSWER (Strict & Honest)
         // ==========================================
         if (action === 'evaluate') {
-            const prompt = `System: You are an expert, honest, and friendly HR Manager. Output MUST be valid JSON.
+            const prompt = `You are an expert, honest, and friendly HR Manager. Output MUST be valid JSON.
             
             Task: Evaluate the candidate's answer: "${answer}" to the interview question: "${question}".
             
@@ -83,10 +71,12 @@ export default async function handler(req, res) {
                 "correct_answer": "The ideal professional answer in ${lang}" 
             }`;
 
-            const evaluation = await callGroqWithFallback([{ role: "system", content: prompt }]);
-            return res.status(200).json(evaluation);
+            const result = await model.generateContent(prompt);
+            const responseText = result.response.text();
+            return res.status(200).json(JSON.parse(responseText));
         }
     } catch (error) {
+        console.error("Gemini API Error:", error);
         return res.status(500).json({ error: error.message });
     }
 }
