@@ -5,8 +5,5 @@
   "main": "api/interview.js",
   "scripts": {
     "start": "node api/interview.js"
-  },
-  "dependencies": {
-    "@google/generative-ai": "latest"
   }
 }
