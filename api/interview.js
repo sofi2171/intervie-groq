@@ -1,9 +1,4 @@
-// 100% DIRECT FETCH API - UNIVERSAL GEMINI-PRO MODEL
-
-function parseGeminiJSON(text) {
-    let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-    return JSON.parse(cleanText);
-}
+// 100% DIRECT FETCH GEMINI API - FINAL VERSION
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,7 +12,7 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-        return res.status(500).json({ error: "Gemini API Key is missing in Vercel Environment Variables!" });
+        return res.status(500).json({ error: "Gemini API Key is missing in Vercel!" });
     }
 
     try {
@@ -62,8 +57,8 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // 🚀 THE FIX: UNIVERSAL "gemini-pro" MODEL
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+        // 🚀 THE FINAL FIX: PERFECT MODEL NAME
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
         
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -77,14 +72,16 @@ export default async function handler(req, res) {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error?.message || "Unknown Gemini Direct Fetch Error");
+            throw new Error(data.error?.message || "Unknown API Error");
         }
 
-        const responseText = data.candidates[0].content.parts[0].text;
-        return res.status(200).json(parseGeminiJSON(responseText));
+        let text = data.candidates[0].content.parts[0].text;
+        let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+        
+        return res.status(200).json(JSON.parse(cleanText));
 
     } catch (error) {
         console.error("Direct Fetch API Error:", error.message);
-        return res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: "Direct Fetch API Error: " + error.message });
     }
 }
