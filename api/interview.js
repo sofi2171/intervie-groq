@@ -1,9 +1,7 @@
-// 100% DIRECT FETCH GEMINI API - WITH AUTO-DISCOVERY 🤖
+// 100% DIRECT FETCH GEMINI API - WITH AUTO-RETRY & MULTI-MODEL FALLBACK 🛡️
 
-function parseGeminiJSON(text) {
-    let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-    return JSON.parse(cleanText);
-}
+// Helper Function: 2 second wait karne ke liye
+const delay = ms => new Promise(res => setTimeout(res, ms));
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,8 +12,6 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     const { action, name, role, exp, lang, qty, jd, question, answer } = req.body;
-    
-    // Space hatane ke liye trim() use kiya hai
     const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : null;
 
     if (!apiKey) {
@@ -23,40 +19,6 @@ export default async function handler(req, res) {
     }
 
     try {
-        // ==========================================
-        // 🌟 MAGIC STEP 1: AUTO-DISCOVER AVAILABLE MODELS
-        // ==========================================
-        // Hum Google se list mangwa rahe hain ke kon kon se models allowed hain
-        const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
-        const listRes = await fetch(listUrl);
-        const listData = await listRes.json();
-
-        let selectedModel = "models/gemini-1.5-flash"; // Default
-
-        if (listData.models && listData.models.length > 0) {
-            const availableModels = listData.models.map(m => m.name);
-            console.log("Google Allowed Models:", availableModels); // Vercel logs mein dikhega
-
-            // Jo best model available hoga, code khud usay select kar lega
-            if (availableModels.includes("models/gemini-1.5-flash")) {
-                selectedModel = "models/gemini-1.5-flash";
-            } else if (availableModels.includes("models/gemini-1.5-pro")) {
-                selectedModel = "models/gemini-1.5-pro";
-            } else if (availableModels.includes("models/gemini-1.0-pro")) {
-                selectedModel = "models/gemini-1.0-pro";
-            } else if (availableModels.includes("models/gemini-pro")) {
-                selectedModel = "models/gemini-pro";
-            } else {
-                const genModel = listData.models.find(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
-                if (genModel) selectedModel = genModel.name;
-            }
-        }
-        
-        console.log("🚀 Code is using this model:", selectedModel);
-
-        // ==========================================
-        // STEP 2: PREPARE PROMPT
-        // ==========================================
         let prompt = "";
 
         if (action === 'generate') {
@@ -98,33 +60,64 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // ==========================================
-        // STEP 3: CALL THE DISCOVERED MODEL
-        // ==========================================
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${selectedModel}:generateContent?key=${apiKey}`;
-        
-        const response = await fetch(apiUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: { temperature: 0.2 }
-            })
-        });
+        // 🛡️ THE MAGIC: FALLBACK & RETRY LOGIC
+        // Google ke best models ki list. Agar ek busy hoga, to code agle par chala jaye ga.
+        const modelsToTry = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"];
+        let lastError = "";
 
-        const data = await response.json();
+        for (let model of modelsToTry) {
+            let retries = 2; // Har model par 2 baar try karega
+            
+            while (retries > 0) {
+                try {
+                    console.log(`🚀 Trying model: ${model} (Retries left: ${retries})`);
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            generationConfig: { temperature: 0.2 }
+                        })
+                    });
 
-        if (!response.ok) {
-            throw new Error(data.error?.message || "Unknown Gemini API Error");
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        // SUCCESS! Mark-down hata kar JSON bhejo
+                        let text = data.candidates[0].content.parts[0].text;
+                        let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+                        return res.status(200).json(JSON.parse(cleanText));
+                    } else {
+                        const errorMsg = data.error?.message || "Unknown API Error";
+                        lastError = errorMsg;
+
+                        if (errorMsg.toLowerCase().includes("high demand") || response.status === 503) {
+                            console.log(`⚠️ ${model} is busy. Waiting 2.5 seconds to retry...`);
+                            await delay(2500); // Wait 2.5 seconds before retrying
+                            retries--;
+                        } else if (errorMsg.toLowerCase().includes("not found") || response.status === 404) {
+                            console.log(`❌ ${model} not found for this key. Switching to next model...`);
+                            break; // Yeh while loop torey ga, aur agle model (for loop) par chala jaye ga
+                        } else {
+                            throw new Error(errorMsg); // Agar API key ghalat ho ya koi aur masla ho
+                        }
+                    }
+                } catch (err) {
+                    if (retries === 1) {
+                        lastError = err.message;
+                        break; 
+                    }
+                    retries--;
+                }
+            }
         }
 
-        let text = data.candidates[0].content.parts[0].text;
-        let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
-        
-        return res.status(200).json(JSON.parse(cleanText));
+        // Agar saare models aur saari retries fail ho jayen
+        return res.status(500).json({ error: "System Error: Google servers are highly congested right now. We tried multiple times. Please try again after 5 minutes." });
 
     } catch (error) {
-        console.error("API Fetch Error:", error.message);
-        return res.status(500).json({ error: "System Error: " + error.message });
+        return res.status(500).json({ error: "Fatal API Error: " + error.message });
     }
 }
