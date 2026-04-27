@@ -7,6 +7,6 @@
     "start": "node api/interview.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.2.1"
+    "@google/generative-ai": "latest"
   }
 }
