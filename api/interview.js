@@ -1,4 +1,9 @@
-// 100% DIRECT FETCH GEMINI API - FINAL VERSION
+// 100% DIRECT FETCH GEMINI API - WITH AUTO-DISCOVERY 🤖
+
+function parseGeminiJSON(text) {
+    let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
+    return JSON.parse(cleanText);
+}
 
 export default async function handler(req, res) {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -9,13 +14,49 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
     const { action, name, role, exp, lang, qty, jd, question, answer } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
+    
+    // Space hatane ke liye trim() use kiya hai
+    const apiKey = process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.trim() : null;
 
     if (!apiKey) {
         return res.status(500).json({ error: "Gemini API Key is missing in Vercel!" });
     }
 
     try {
+        // ==========================================
+        // 🌟 MAGIC STEP 1: AUTO-DISCOVER AVAILABLE MODELS
+        // ==========================================
+        // Hum Google se list mangwa rahe hain ke kon kon se models allowed hain
+        const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        const listRes = await fetch(listUrl);
+        const listData = await listRes.json();
+
+        let selectedModel = "models/gemini-1.5-flash"; // Default
+
+        if (listData.models && listData.models.length > 0) {
+            const availableModels = listData.models.map(m => m.name);
+            console.log("Google Allowed Models:", availableModels); // Vercel logs mein dikhega
+
+            // Jo best model available hoga, code khud usay select kar lega
+            if (availableModels.includes("models/gemini-1.5-flash")) {
+                selectedModel = "models/gemini-1.5-flash";
+            } else if (availableModels.includes("models/gemini-1.5-pro")) {
+                selectedModel = "models/gemini-1.5-pro";
+            } else if (availableModels.includes("models/gemini-1.0-pro")) {
+                selectedModel = "models/gemini-1.0-pro";
+            } else if (availableModels.includes("models/gemini-pro")) {
+                selectedModel = "models/gemini-pro";
+            } else {
+                const genModel = listData.models.find(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"));
+                if (genModel) selectedModel = genModel.name;
+            }
+        }
+        
+        console.log("🚀 Code is using this model:", selectedModel);
+
+        // ==========================================
+        // STEP 2: PREPARE PROMPT
+        // ==========================================
         let prompt = "";
 
         if (action === 'generate') {
@@ -57,8 +98,10 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // 🚀 THE FINAL FIX: PERFECT MODEL NAME
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // ==========================================
+        // STEP 3: CALL THE DISCOVERED MODEL
+        // ==========================================
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/${selectedModel}:generateContent?key=${apiKey}`;
         
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -72,7 +115,7 @@ export default async function handler(req, res) {
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error?.message || "Unknown API Error");
+            throw new Error(data.error?.message || "Unknown Gemini API Error");
         }
 
         let text = data.candidates[0].content.parts[0].text;
@@ -81,7 +124,7 @@ export default async function handler(req, res) {
         return res.status(200).json(JSON.parse(cleanText));
 
     } catch (error) {
-        console.error("Direct Fetch API Error:", error.message);
-        return res.status(500).json({ error: "Direct Fetch API Error: " + error.message });
+        console.error("API Fetch Error:", error.message);
+        return res.status(500).json({ error: "System Error: " + error.message });
     }
 }
