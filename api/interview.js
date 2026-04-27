@@ -6,7 +6,6 @@ function parseGeminiJSON(text) {
 }
 
 export default async function handler(req, res) {
-    // CORS Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -24,9 +23,6 @@ export default async function handler(req, res) {
     try {
         let prompt = "";
 
-        // ==========================================
-        // 1. GENERATE QUESTIONS
-        // ==========================================
         if (action === 'generate') {
             const jdContext = jd ? `\nCRITICAL CONTEXT: The candidate provided this specific Job Description for the role: "${jd}". You MUST base your interview questions directly on the specific skills, requirements, and duties mentioned in this JD.` : '';
 
@@ -41,15 +37,12 @@ export default async function handler(req, res) {
             Language Rules: Must be strictly in ${lang}.
             - If "English": Use natural, professional conversational English.
             - If "Urdu": Use pure Urdu Arabic script ONLY (اردو). No Hindi words.
-            - If "Roman Urdu": Use English A-Z alphabets, but speak in a natural Pakistani conversational tone (e.g., 'Assalam o Alaikum ${name}, aap kaise hain?').
+            - If "Roman Urdu": Use English A-Z alphabets, but speak in a natural Pakistani conversational tone.
             - ABSOLUTELY NO mixed scripts.
             
             Format exactly like this: { "questions": ["Greeting & Q1", "Q2", "Q3"] }`;
         }
 
-        // ==========================================
-        // 2. EVALUATE ANSWER
-        // ==========================================
         if (action === 'evaluate') {
             prompt = `You are an expert, honest, and friendly HR Manager. Output MUST be strictly valid JSON without any markdown formatting.
             
@@ -60,8 +53,6 @@ export default async function handler(req, res) {
             2. status = "improve": If the answer has the right general idea but lacks detail, uses poor wording, or is incomplete.
             3. status = "incorrect": If the answer is completely wrong, irrelevant, or unprofessional. Do NOT pass a wrong answer. Be strict but polite.
             
-            FEEDBACK TONE: Speak directly to the candidate like a human mentor. Be conversational, direct, and honest.
-            
             Language Rules: Pure ${lang} ONLY. No foreign scripts.
             
             Format exactly like this: { 
@@ -71,9 +62,8 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // 🚀 THE MAGIC: DIRECT API CALL (Bypassing Vercel Package Issues)
-        // ہم v1beta استعمال کر رہے ہیں جو 1.5 flash کو 100% سپورٹ کرتا ہے
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 🚀 THE MAGIC: USING "gemini-1.5-flash-latest"
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
         
         const response = await fetch(apiUrl, {
             method: 'POST',
@@ -86,7 +76,6 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
-        // اگر API نے کوئی ایرر دیا تو اسے پکڑیں گے
         if (!response.ok) {
             throw new Error(data.error?.message || "Unknown Gemini Direct Fetch Error");
         }
@@ -95,7 +84,6 @@ export default async function handler(req, res) {
         return res.status(200).json(parseGeminiJSON(responseText));
 
     } catch (error) {
-        // اب اگر ایرر آئے گا تو اس پر "Direct Fetch API Error" لکھا ہوگا
         console.error("Direct Fetch API Error:", error.message);
         return res.status(500).json({ error: error.message });
     }
