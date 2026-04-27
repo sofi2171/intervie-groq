@@ -1,4 +1,4 @@
-// 100% DIRECT FETCH API - NO GOOGLE PACKAGE NEEDED!
+// 100% DIRECT FETCH API - UNIVERSAL GEMINI-PRO MODEL
 
 function parseGeminiJSON(text) {
     let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
@@ -62,8 +62,8 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // 🚀 THE FINAL MAGIC: PERFECT URL FOR GEMINI 1.5 FLASH
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+        // 🚀 THE FIX: UNIVERSAL "gemini-pro" MODEL
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
         
         const response = await fetch(apiUrl, {
             method: 'POST',
