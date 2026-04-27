@@ -1,4 +1,4 @@
-// 100% DIRECT FETCH OPENROUTER API - BEST FOR URDU & FREE TIER 🚀
+// 100% DIRECT FETCH OPENROUTER API - USING FREE GEMINI 2.0 🚀
 
 function parseJSON(text) {
     let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
@@ -62,7 +62,6 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // 🚀 THE MAGIC: CALLING QWEN-2.5 (FREE TIER) VIA OPENROUTER
         const apiUrl = "https://openrouter.ai/api/v1/chat/completions";
         
         const response = await fetch(apiUrl, {
@@ -70,12 +69,12 @@ export default async function handler(req, res) {
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
-                'HTTP-Referer': 'https://healthjobs-portal.web.app', // App ki identity
+                'HTTP-Referer': 'https://healthjobs-portal.web.app', 
                 'X-Title': 'HealthJobs Portal'
             },
             body: JSON.stringify({
-                // AliBaba ka behtareen free model Urdu/Roman Urdu ke liye
-                model: "qwen/qwen-2.5-72b-instruct:free", 
+                // 🚀 AB HUM OPENROUTER KE ZARIYE GOOGLE GEMINI 2.0 USE KARENGE (FREE & FAST!)
+                model: "google/gemini-2.0-flash:free", 
                 messages: [{ role: "user", content: prompt }],
                 temperature: 0.3,
                 response_format: { type: "json_object" }
