@@ -1,4 +1,4 @@
-// 100% DIRECT OPENROUTER API - WITH AUTO-FALLBACK MULTI-MODELS 🛡️🚀
+// 100% DYNAMIC OPENROUTER API - AUTO DISCOVERS LIVE FREE MODELS 🚀🤖
 
 function parseJSON(text) {
     let cleanText = text.replace(/```json/gi, '').replace(/```/gi, '').trim();
@@ -22,6 +22,40 @@ export default async function handler(req, res) {
     }
 
     try {
+        // ==========================================
+        // 🌟 STEP 1: AUTO-DISCOVER LIVE FREE MODELS
+        // ==========================================
+        console.log("🔍 Fetching live free models from OpenRouter...");
+        const modelsRes = await fetch("https://openrouter.ai/api/v1/models");
+        const modelsData = await modelsRes.json();
+        
+        let freeModels = [];
+        if (modelsData && modelsData.data) {
+            // Sirf wo models filter karo jinke naam ke aakhir mein ":free" aata hai
+            freeModels = modelsData.data.filter(m => m.id.endsWith(':free')).map(m => m.id);
+        }
+
+        // Agar OpenRouter api response na de, to default safe list
+        if (freeModels.length === 0) {
+            freeModels = [
+                "meta-llama/llama-3.1-8b-instruct:free", 
+                "mistralai/mistral-7b-instruct:free",
+                "huggingfaceh4/zephyr-7b-beta:free"
+            ];
+        }
+
+        // Priority Set karna: Pehle Gemini, phir Llama, phir koi bhi aur
+        const geminiModels = freeModels.filter(m => m.includes('gemini'));
+        const llamaModels = freeModels.filter(m => m.includes('llama'));
+        const otherModels = freeModels.filter(m => !m.includes('gemini') && !m.includes('llama'));
+        
+        // Top 3 behtareen available models select kar liye
+        const modelsToTry = [...geminiModels, ...llamaModels, ...otherModels].slice(0, 3);
+        console.log("✅ Models selected for this run:", modelsToTry);
+
+        // ==========================================
+        // 🌟 STEP 2: PREPARE INTERVIEW PROMPT
+        // ==========================================
         let prompt = "";
 
         if (action === 'generate') {
@@ -62,21 +96,15 @@ export default async function handler(req, res) {
             }`;
         }
 
-        // 🛡️ THE MASTERSTROKE: LIST OF 100% FREE & BEST URDU MODELS
-        const freeModelsToTry = [
-            "google/gemini-2.0-flash-exp:free", // Gemini ka latest experimental free model
-            "google/gemini-1.5-pro-exp:free",   // Gemini ka Pro free model
-            "meta-llama/llama-3.3-70b-instruct:free", // Llama 3.3 (Zabardast aur fast)
-            "google/gemma-2-9b-it:free"         // Google Gemma (Backup)
-        ];
-
+        // ==========================================
+        // 🌟 STEP 3: TRY THE MODELS (AUTO-FALLBACK)
+        // ==========================================
         const apiUrl = "https://openrouter.ai/api/v1/chat/completions";
         let lastError = "";
 
-        // Yeh loop ek ek karke models try karega. Jo chal gaya, wahan se JSON bhej dega!
-        for (let model of freeModelsToTry) {
+        for (let model of modelsToTry) {
             try {
-                console.log(`🚀 Trying OpenRouter Model: ${model}`);
+                console.log(`🚀 Hitting Model: ${model}`);
                 
                 const response = await fetch(apiUrl, {
                     method: 'POST',
@@ -97,21 +125,20 @@ export default async function handler(req, res) {
                 const data = await response.json();
 
                 if (response.ok && data.choices && data.choices.length > 0) {
-                    // Kamyabi! Model mil gaya aur chal gaya.
+                    // Success! Return the JSON response.
                     let text = data.choices[0].message.content;
                     return res.status(200).json(parseJSON(text));
                 } else {
-                    // Agar model nahi mila (404) ya band hai, to error note karo aur agla try karo
-                    lastError = data.error?.message || "Unknown API Error";
-                    console.log(`❌ ${model} failed: ${lastError}. Switching to next...`);
+                    lastError = data.error?.message || "Unknown Error";
+                    console.log(`❌ ${model} failed: ${lastError}. Trying next...`);
                 }
             } catch (err) {
                 lastError = err.message;
+                console.log(`❌ Network error on ${model}. Trying next...`);
             }
         }
 
-        // Agar badqismati se saray free models fail ho jayen (jo ke namumkin hai)
-        return res.status(500).json({ error: "System Error: All free AI models are currently busy. Error: " + lastError });
+        return res.status(500).json({ error: "System Error: All free AI models failed. Last Error: " + lastError });
 
     } catch (error) {
         console.error("API Error:", error.message);
