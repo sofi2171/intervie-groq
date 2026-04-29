@@ -1,4 +1,4 @@
-import Groq from "groq-sdk";
+const Groq = require("groq-sdk"); // 🔥 FIX: Capital 'I' wali ghalti theek kar di aur require use kiya
 
 async function callGroqWithFallback(messages) {
     // 5 Keys ka Bulletproof System
@@ -27,12 +27,19 @@ async function callGroqWithFallback(messages) {
 }
 
 export default async function handler(req, res) {
+    // 🔥 CORS Headers: Yeh har request par laazmi jayenge
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     
-    if (req.method === 'OPTIONS') return res.status(200).end();
-    if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
+    // Preflight (OPTIONS) request ko foran pass karein
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
     const { action, name, role, exp, lang, qty, jd, question, answer } = req.body;
 
@@ -82,7 +89,11 @@ export default async function handler(req, res) {
             const evaluation = await callGroqWithFallback([{ role: "system", content: prompt }]);
             return res.status(200).json(evaluation);
         }
+        
+        return res.status(400).json({ error: "Invalid Action" });
+        
     } catch (error) {
+        console.error("API Error:", error);
         return res.status(500).json({ error: error.message });
     }
 }
