@@ -1,7 +1,6 @@
-const Groq = require("groq-sdk"); // 🔥 FIX: Capital 'I' wali ghalti theek kar di aur require use kiya
+import Groq from "groq-sdk"; // 🔥 FIX: Chota 'i' aur sahi ES Module syntax
 
 async function callGroqWithFallback(messages) {
-    // 5 Keys ka Bulletproof System
     const keys = [
         process.env.GROQ_1, process.env.GROQ_2, process.env.GROQ_3,
         process.env.GROQ_4, process.env.GROQ_5
@@ -14,7 +13,7 @@ async function callGroqWithFallback(messages) {
             const groq = new Groq({ apiKey: keys[i] });
             const completion = await groq.chat.completions.create({
                 messages: messages,
-                model: "llama-3.3-70b-versatile", // Duniya ka behtareen open-source model
+                model: "llama-3.3-70b-versatile",
                 temperature: 0.3, 
                 response_format: { type: "json_object" }
             });
@@ -27,12 +26,11 @@ async function callGroqWithFallback(messages) {
 }
 
 export default async function handler(req, res) {
-    // 🔥 CORS Headers: Yeh har request par laazmi jayenge
+    // 🔥 CORS Headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
     
-    // Preflight (OPTIONS) request ko foran pass karein
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
